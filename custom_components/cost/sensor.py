@@ -34,7 +34,8 @@ from homeassistant.components.sensor import (
 )
 
 from homeassistant.const import (
-
+    STATE_UNKNOWN,
+    STATE_UNAVAILABLE,
     CONF_NAME,
     CONF_UNIQUE_ID,
     CONF_UNIT_OF_MEASUREMENT,
@@ -232,7 +233,7 @@ class CostSensor(RestoreSensor):
             return self._tariff
         tariffstate = self.hass.states.get(self._sensor_cost_id)
 
-        if tariffstate is not None and tariffstate.state is not None:
+        if tariffstate is not None and tariffstate.state is not None and tariffstate.state not in (STATE_UNKNOWN, STATE_UNAVAILABLE):
             self._tariff = Decimal(tariffstate.state)
 
         return self._tariff
