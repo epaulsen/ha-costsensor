@@ -1,7 +1,7 @@
 """Sensor platform for integration_blueprint."""
 from __future__ import annotations
 from decimal import Decimal
-from datetime import datetime
+from datetime import datetime, timedelta
 import voluptuous as vol
 from croniter import croniter
 
@@ -11,8 +11,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers import (
     config_validation as cv,
-    # device_registry as dr,
-    # entity_registry as er,
+    entity_registry as er,
 )
 
 from homeassistant.helpers.event import (
@@ -32,25 +31,19 @@ from homeassistant.components.utility_meter.const import (
 from homeassistant.components.sensor import (
     RestoreSensor,
     PLATFORM_SCHEMA,
-    # SensorExtraStoredData,
-    # SensorStateClass,
 )
 
 from homeassistant.const import (
-    ATTR_DEVICE_CLASS,
-    ATTR_UNIT_OF_MEASUREMENT,
-    CONF_METHOD,
+
     CONF_NAME,
     CONF_UNIQUE_ID,
-    STATE_UNAVAILABLE,
-    STATE_UNKNOWN,
-    UnitOfTime,
+    CONF_UNIT_OF_MEASUREMENT,
 )
 
 from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType, EventType
 import homeassistant.util.dt as dt_util
 
-from .const import DOMAIN, CONF_SOURCE_SENSOR, CONF_ROUND_DIGITS, CONF_TARIFF_SENSOR
+from .const import CONF_SOURCE_SENSOR, CONF_ROUND_DIGITS, CONF_TARIFF_SENSOR,CONF_CRON_PATTERN
 
 
 
@@ -71,8 +64,10 @@ PLATFORM_SCHEMA = vol.All(
         {
             vol.Optional(CONF_NAME): cv.string,
             vol.Optional(CONF_UNIQUE_ID): cv.string,
+            vol.Optional(CONF_UNIT_OF_MEASUREMENT): cv.string,
             vol.Required(CONF_SOURCE_SENSOR): cv.entity_id,
             vol.Required(CONF_TARIFF_SENSOR): cv.entity_id,
+            vol.Optional(CONF_CRON_PATTERN): cv.string,
             vol.Optional(CONF_ROUND_DIGITS, default=DEFAULT_ROUND): vol.Coerce(int),
         }
     )
@@ -86,13 +81,25 @@ async def async_setup_platform(
     discovery_info: DiscoveryInfoType | None = None,
 ) -> None:
     """Set up the integration sensor."""
+
+    cronvalue = config[CONF_CRON_PATTERN]
+    cronpattern = None
+
+    if cronvalue is not None:
+        delta = timedelta(days=0)
+        cronpattern = PERIOD2CRON[cronvalue].format(
+                    minute=delta.seconds % 3600 // 60,
+                    hour=delta.seconds // 3600,
+                    day=delta.days + 1,)
+    config.get(CONF_UNIT_OF_MEASUREMENT)
     cost = CostSensor(
-        "sensor.energy_spent",
-        "sensor.power_cost",
-        "monthly",
-        "Kostnad",
-        "sensor.kostnad",
-        2
+        config[CONF_SOURCE_SENSOR],
+        config[CONF_TARIFF_SENSOR],
+        cronpattern,
+        config.get(CONF_NAME),
+        config.get(CONF_UNIQUE_ID),
+        config.get(CONF_UNIT_OF_MEASUREMENT),
+        config.get(CONF_ROUND_DIGITS)
         )
     async_add_entities([cost])
 
@@ -104,12 +111,25 @@ async def async_setup_entry(
 ) -> None:
     """Set up the sensor platform."""
 
+    registry = er.async_get(hass)
+    # Validate + resolve entity registry id to entity_id
+    source_entity_id = er.async_validate_entity_id(
+        registry, config_entry.options[CONF_SOURCE_SENSOR]
+    )
+
+    tariff_entity_id = er.async_validate_entity_id(registry, config_entry.options[CONF_TARIFF_SENSOR])
+
+    cron = config_entry.options[CONF_CRON_PATTERN]
+
+    cronpattern = PERIOD2CRON[cron]
+
     cost = CostSensor(
-        "sensor.energy_spent",
-        "sensor.power_cost",
-        "monthly",
+        source_entity_id,
+        tariff_entity_id,
+        cronpattern,
         "Kostnad",
         "sensor.kostnad",
+        "kr",
         2
         )
     async_add_entities([cost])
@@ -125,29 +145,29 @@ class CostSensor(RestoreSensor):
         cron_pattern: str,
         name: str,
         unique_id: str,
+        unit_of_measurement: str,
         round_digits: int,
     ):
         """Initialize the cost sensor entity"""
-
+        self._attr_name = name
+        self._unit_of_measurement = unit_of_measurement
         self._attr_unique_id = unique_id
         self._sensor_source_id = source_entity
         self._sensor_cost_id = cost_entity
         self._state = None
         self._last_reset = dt_util.utcnow()
-        self._last_valid_state = None
-        self._collecting = None
         self._name = name
-        self._unit_of_measurement = None
         self._cron_pattern = cron_pattern
         self._round_digits = round_digits
-        self._tariff = Decimal | None
+        self._tariff = None
         self._last_period = None
 
     async def async_added_to_hass(self) -> None:
         """Handle entity which will be added."""
         await super().async_added_to_hass()
         if (last_sensor_data := await self.async_get_last_sensor_data()) is not None:
-            self._state = (Decimal(str(last_sensor_data.native_value)))
+            if last_sensor_data.native_value is not None:
+                self._state = (Decimal(str(last_sensor_data.native_value)))
 
 
         @callback
@@ -169,7 +189,7 @@ class CostSensor(RestoreSensor):
             if tariff is None:
                 return
 
-            delta = Decimal(new_state.state) - Decimal(old_state.state)
+            delta = Decimal(Decimal(new_state.state) - Decimal(old_state.state))
 
             if self._state is None:
                 self._state = Decimal(0)
@@ -210,14 +230,14 @@ class CostSensor(RestoreSensor):
         """Retreive tariff to be used"""
         if self._tariff is not None:
             return self._tariff
-        tariffstate = self.hass.states.get(self._tariff)
+        tariffstate = self.hass.states.get(self._sensor_cost_id)
 
         if tariffstate is not None and tariffstate.state is not None:
             self._tariff = Decimal(tariffstate.state)
 
         return self._tariff
 
-    async def _async_reset_meter(self, event):
+    async def _async_reset_meter(self, _):
         """Determine cycle - Helper function for larger than daily cycles."""
         if self._cron_pattern is not None:
             self.async_on_remove(
@@ -233,7 +253,7 @@ class CostSensor(RestoreSensor):
         """Reset meter."""
         if self._state is None:
             return
-        _LOGGER.debug("Reset utility meter <%s>", self.entity_id)
+
         self._last_reset = dt_util.utcnow()
         self._last_period = Decimal(self._state) if self._state else Decimal(0)
         self._state = 0

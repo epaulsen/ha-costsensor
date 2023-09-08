@@ -14,13 +14,11 @@ homeassistant:
 sensor:
   - platform: file
     name: "power_usage"
-    unique_id: sensor.power_usage
     unit_of_measurement: "W"
     file_path: /workspaces/ha-costsensor/sensor-data.txt
 
   - platform: file
     name: "power_cost"
-    unique_id: sensor.power_cost
     unit_of_measurement: "NOK/kWh"
     file_path: /workspaces/ha-costsensor/sensor-cost.txt
 
@@ -30,3 +28,19 @@ sensor:
     method: left
     unit_prefix: k
     round: 2
+
+  - platform: cost
+    source: sensor.energy_spent
+    tariff: sensor.power_cost
+    name: "Kostnad per time"
+    unique_id: sensor.usage_cost_monthly
+    unit_of_measurement: "kr"
+    cron: hourly
+
+  - platform: cost
+    source: sensor.energy_spent
+    tariff: sensor.power_cost
+    name: "Kostnad per dag"
+    unique_id: sensor.usage_cost_daily
+    unit_of_measurement: "kr"
+    cron: daily
