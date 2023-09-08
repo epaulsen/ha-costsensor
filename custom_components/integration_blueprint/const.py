@@ -1,9 +1,12 @@
-"""Constants for integration_blueprint."""
+"""Constants for cost platform."""
 from logging import Logger, getLogger
 
 LOGGER: Logger = getLogger(__package__)
 
-NAME = "Integration blueprint"
-DOMAIN = "integration_blueprint"
+NAME = "Cost"
+DOMAIN = "cost"
 VERSION = "0.0.0"
-ATTRIBUTION = "Data provided by http://jsonplaceholder.typicode.com/"
+
+CONF_ROUND_DIGITS = "round"
+CONF_SOURCE_SENSOR = "source"
+CONF_TARIFF_SENSOR = "tariff"

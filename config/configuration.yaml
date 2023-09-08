@@ -6,3 +6,27 @@ logger:
   default: info
   logs:
     custom_components.integration_blueprint: debug
+
+homeassistant:
+  allowlist_external_dirs:
+    - "/workspaces/ha-costsensor"
+
+sensor:
+  - platform: file
+    name: "power_usage"
+    unique_id: sensor.power_usage
+    unit_of_measurement: "W"
+    file_path: /workspaces/ha-costsensor/sensor-data.txt
+
+  - platform: file
+    name: "power_cost"
+    unique_id: sensor.power_cost
+    unit_of_measurement: "NOK/kWh"
+    file_path: /workspaces/ha-costsensor/sensor-cost.txt
+
+  - platform: integration
+    source: sensor.power_usage
+    name: energy_spent
+    method: left
+    unit_prefix: k
+    round: 2
