@@ -186,6 +186,10 @@ class CostSensor(RestoreSensor):
                 # One of the states are missing so we cannot calculate
                 return
 
+            if old_state.state in (STATE_UNKNOWN, STATE_UNAVAILABLE) or new_state.state in (STATE_UNKNOWN, STATE_UNAVAILABLE):
+                # Calculation not possible as no delta value can be calculated
+                return
+
             tariff = self.get_tariff()
             if tariff is None:
                 return
