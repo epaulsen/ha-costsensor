@@ -1,4 +1,4 @@
-"""Sensor platform for integration_blueprint."""
+"""Sensor platform for cost."""
 from __future__ import annotations
 from decimal import Decimal
 from datetime import datetime, timedelta
@@ -149,7 +149,7 @@ class CostSensor(RestoreSensor):
         unit_of_measurement: str,
         round_digits: int,
     ):
-        """Initialize the cost sensor entity"""
+        """Initialize the cost sensor entity."""
         self._attr_name = name
         self._unit_of_measurement = unit_of_measurement
         self._attr_unique_id = unique_id
@@ -173,7 +173,7 @@ class CostSensor(RestoreSensor):
 
         @callback
         def calc_integration(event: EventType[EventStateChangedData]) -> None:
-            """Calculate the new value when source sensor changes"""
+            """Calculate the new value when source sensor changes."""
 
             old_state = event.data["old_state"]
             new_state = event.data["new_state"]
@@ -203,7 +203,7 @@ class CostSensor(RestoreSensor):
             self.async_write_ha_state()
 
         def tariff_changed(event: EventType[EventStateChangedData]) -> None:
-            """Calculate the new value when source sensor changes"""
+            """Calculate the new value when source sensor changes."""
             new_state = event.data["new_state"]
             if new_state is None:
                 return
@@ -232,7 +232,7 @@ class CostSensor(RestoreSensor):
 
 
     def get_tariff(self) -> Decimal | None:
-        """Retreive tariff to be used"""
+        """Retreive tariff to be used."""
         if self._tariff is not None:
             return self._tariff
         tariffstate = self.hass.states.get(self._sensor_cost_id)
