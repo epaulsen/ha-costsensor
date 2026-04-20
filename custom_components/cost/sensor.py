@@ -41,7 +41,8 @@ from homeassistant.const import (
     CONF_UNIT_OF_MEASUREMENT,
 )
 
-from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType, EventType
+from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
+from homeassistant.core import Event
 import homeassistant.util.dt as dt_util
 
 from .const import CONF_SOURCE_SENSOR, CONF_ROUND_DIGITS, CONF_TARIFF_SENSOR,CONF_CRON_PATTERN
